@@ -1,0 +1,149 @@
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: lua-nginx-ingress
+#   annotations:
+#     nginx.ingress.kubernetes.io/server-snippet: |
+#       -     lua_package_path  "/etc/nginx/lua/?.lua;;";
+#       location / {
+#         return 200 'OK';
+#       }
+#     kubernetes.io/ingress.class: "nginx"
+# spec:
+#   rules:
+#     - host: lua-nginx.example.com # Replace with your domain
+#       http:
+#         paths:
+#           - pathType: Prefix
+#             path: "/"
+#             backend:
+#               service:
+#                 name: lua-nginx
+#                 port:
+#                   number: 3000
+
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: app-ingress
+#   annotations:
+#     nginx.ingress.kubernetes.io/server-snippet: |
+#       lua_package_path "/etc/nginx/lua/?.lua;;";
+#       location / {
+#         return 200 'OK';
+#       }
+#     kubernetes.io/ingress.class: "nginx"
+# spec:
+#   rules:
+#     - host: lua-nginx.example.com # Replace with your domain
+#       http:
+#         paths:
+#           - pathType: Prefix
+#             path: "/"
+#             backend:
+#               service:
+#                 name: lua-nginx
+#                 port:
+#                   number: 3000
+
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: jwt-ingress
+#   annotations:
+#     nginx.ingress.kubernetes.io/auth-method: "JWT"
+#     nginx.ingress.kubernetes.io/auth-jwt-key: "test" # Replace with your actual key
+#     nginx.ingress.kubernetes.io/auth-jwt-key-file: "/etc/nginx/ssl/public.pem" # Replace with the path to your public key
+# spec:
+#   rules:
+#     - host: jwt.example.com # Replace with your domain
+#       http:
+#         paths:
+#           - pathType: Prefix
+#             path: "/"
+#             backend:
+#               service:
+#                 name: lua-nginx
+#                 port:
+#                   number: 3000
+
+
+
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: lua-nginx-ingress
+#   annotations:
+#     nginx.ingress.kubernetes.io/configuration-snippet: |
+#       access_by_lua_block {
+#       }
+# spec:
+#   rules:
+#     - host: lua-nginx.example.com # Replace with your domain
+#       http:
+#         paths:
+#           - pathType: Prefix
+#             path: "/"
+#             backend:
+#               service:
+#                 name: lua-nginx-service
+#                 port:
+#                   number: 3000
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lua-nginx-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      access_by_lua_block {
+        ngx.log(ngx.DEBUG, "Executing Lua code: ")
+
+        local jwt = require "resty.jwt"
+
+        local jwt_secret = "super_secret"
+
+        local authorizationHeader = ngx.var.http_authorization
+
+        if authorizationHeader then
+            -- Extract the token from the Authorization header
+            local _, _, token = string.find(authorizationHeader, "Bearer%s+(.+)")
+
+            if token then
+                -- Verify and decode the JWT token
+                local claims = jwt:verify(jwt_secret, token)
+
+                if claims then
+                    -- The token is verified, you can access the claims
+                    ngx.req.set_header("X-TOKEN", token)
+                    ngx.req.set_header("X-USER-EMAIL", claims.payload.email)
+                else
+                    -- Token verification failed
+                    ngx.req.set_header("X-LOG", "JWT verification failed")
+                    ngx.log(ngx.ERR, "JWT verification failed: ", claims)
+                    ngx.exit(ngx.HTTP_UNAUTHORIZED)
+                end
+            else
+                ngx.req.set_header("X-LOG", "Invalid Authorization header format")
+                ngx.log(ngx.ERR, "Invalid Authorization header format")
+                ngx.exit(ngx.HTTP_UNAUTHORIZED)
+            end
+        end
+
+        if authorizationHeader then
+          ngx.req.set_header("X-TOKEN2", authorizationHeader)
+        end
+      }
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: lua-nginx.example.com # Replace with your domain
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: lua-nginx-service
+                port:
+                  number: 3000

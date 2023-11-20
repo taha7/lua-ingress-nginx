@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lua-nginx
+  labels:
+    app: lua-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lua-nginx
+  template:
+    metadata:
+      labels:
+        app: lua-nginx
+    spec:
+      containers:
+        - name: lua-nginx
+          image: tahamohamed7/lua-nginx-node-app:v3 # Update the tag to the new version
+          ports:
+            - containerPort: 3000
